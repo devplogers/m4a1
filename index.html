@@ -2,64 +2,94 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>3D Fix Express</title>
+    <title>3D Fix Express - Neon Heart</title>
     <style>
-        body { margin: 0; background: #020202; color: #fff; overflow: hidden; font-family: sans-serif; }
+        body { margin: 0; background: #000; color: #fff; overflow: hidden; font-family: sans-serif; }
         #ui {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
             display: flex; gap: 10px; z-index: 100;
-            background: rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; backdrop-filter: blur(10px);
+            background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.1);
         }
         .btn {
-            padding: 10px 20px; background: #222; border: 1px solid #444; 
-            cursor: pointer; border-radius: 8px; color: #fff; font-weight: bold;
+            padding: 10px 20px; background: #111; border: 1px solid #333; 
+            cursor: pointer; border-radius: 8px; color: #888; font-weight: bold;
+            transition: 0.3s;
         }
-        .btn:hover { background: #333; }
-        .active { border-color: #00d4ff; color: #00d4ff; }
-        #status { position: fixed; top: 10px; left: 10px; font-size: 11px; color: #555; }
+        .btn:hover { background: #222; color: #fff; }
+        .active { border-color: #ff0055; color: #ff0055; box-shadow: 0 0 15px #ff0055; } /* Кнопка тоже светится */
+        #status { position: fixed; top: 10px; left: 10px; font-size: 11px; color: #444; }
     </style>
 </head>
 <body>
 
 <div id="status">Status: Ready</div>
 <div id="ui">
-    <div class="btn active" onclick="load('money', this)">Деньги</div>
+    <div class="btn active" onclick="load('heart', this)">Сердце М</div>
+    <div class="btn" onclick="load('money', this)">Деньги</div>
     <div class="btn" onclick="load('m4', this)">Винтовка M4</div>
 </div>
 
 <script type="importmap">
-    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+    { 
+        "imports": { 
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js", 
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" 
+        } 
+    }
 </script>
 
 <script type="module">
     import * as THREE from 'three';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    // Новые импорты для GLOW эффекта
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-    let scene, camera, renderer, model, controls;
+    let scene, camera, renderer, model, controls, composer;
     const loader = new GLTFLoader();
+
+    // Параметры для свечения
+    const bloomParams = {
+        threshold: 0,    // С какого уровня яркости начинать свечение (0 - светится всё)
+        strength: 1.5,   // Сила свечения
+        radius: 0.8      // Радиус размытия свечения
+    };
 
     function init() {
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2, 10); // Отодвинули подальше на старт
+        camera.position.set(0, 2, 10);
 
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 2.0; // Врубили яркость на максимум
+        renderer.toneMapping = THREE.ReinhardToneMapping; // Для Bloom лучше этот тонмаппинг
+        renderer.toneMappingExposure = 1.0; 
         document.body.appendChild(renderer.domElement);
 
-        // СВЕТА МНОГО НЕ БЫВАЕТ
-        scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 3)); // Небо/земля
-        const sun = new THREE.DirectionalLight(0xffffff, 4);
+        // Свет оставляем, но ослабляем, чтобы Glow был заметнее
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x111111, 1));
+        const sun = new THREE.DirectionalLight(0xffffff, 1);
         sun.position.set(5, 5, 5);
         scene.add(sun);
 
         controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
 
-        load('money');
+        // --- НАСТРОЙКА ПОСТ-ОБРАБОТКИ (GLOW) ---
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = bloomParams.threshold;
+        bloomPass.strength = bloomParams.strength;
+        bloomPass.radius = bloomParams.radius;
+
+        composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        load('heart');
         animate();
     }
 
@@ -75,29 +105,35 @@
         loader.load(name + '.glb', (gltf) => {
             model = gltf.scene;
             
-            // ГЕОМЕТРИЧЕСКИЙ ФИКС
             const box = new THREE.Box3().setFromObject(model);
             const center = box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
             
-            model.position.sub(center); // Центрируем объект
+            model.position.sub(center);
 
-            // Авто-зум камеры под размер модели
             const maxDim = Math.max(size.x, size.y, size.z);
             const fov = camera.fov * (Math.PI / 180);
             let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-            cameraZ *= 1.5; // Запас, чтобы не обрезало
+            cameraZ *= 1.8; 
             camera.position.z = cameraZ;
             camera.updateProjectionMatrix();
 
             model.traverse(n => {
                 if (n.isMesh) {
-                    // Чтобы M4 не была черной, а деньги — серыми
-                    if (name === 'money') {
+                    if (name === 'heart') {
+                        // Делаем материал "Эмиссионным" - то есть светящимся самим по себе
+                        n.material = new THREE.MeshStandardMaterial({
+                            color: 0xff0033, // Базовый цвет
+                            emissive: 0xff0022, // Цвет свечения
+                            emissiveIntensity: 10, // Сила "лампочки" внутри
+                            roughness: 0.1,
+                            metalness: 0.2
+                        });
+                    } else if (name === 'money') {
                         n.material.metalness = 0;
                         n.material.roughness = 1;
                     } else {
-                        n.material.color.set(0x999999); // Светло-серый металл
+                        n.material.color.set(0x999999);
                         n.material.metalness = 0.4;
                         n.material.roughness = 0.2;
                     }
@@ -111,9 +147,10 @@
 
     function animate() {
         requestAnimationFrame(animate);
-        if (model) model.rotation.y += 0.003;
+        if (model) model.rotation.y += 0.005;
         controls.update();
-        renderer.render(scene, camera);
+        // Рендерим через Composer, а не через обычный renderer
+        composer.render(); 
     }
 
     init();
