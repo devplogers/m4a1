@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>M4 Liquid Bloom</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <style>
+        body { margin: 0; background-color: #000; overflow: hidden; }
+        model-viewer {
+            width: 100vw;
+            height: 100vh;
+            /* Искусственный Bloom через фильтр */
+            filter: brightness(1.2) contrast(1.1) saturate(0);
+        }
+    </style>
+</head>
+<body>
+
+    <model-viewer
+        id="m4"
+        src="m4.glb"
+        environment-image="neutral"
+        camera-orbit="45deg 75deg auto"
+        auto-rotate
+        rotation-per-second="40deg"
+        camera-controls
+        interaction-prompt="none"
+        exposure="4.0"
+        shadow-intensity="0"
+        tone-mapping="agx">
+    </model-viewer>
+
+    <script>
+        const mv = document.querySelector('#m4');
+
+        mv.addEventListener('load', () => {
+            const materials = mv.model.materials;
+
+            materials.forEach((mat) => {
+                const pbr = mat.pbrMetallicRoughness;
+
+                // Делаем жидкий металл
+                pbr.setMetallicFactor(1.0);
+                pbr.setRoughnessFactor(0.1); // 0.1 дает мягкое свечение (Bloom) на гранях
+                pbr.setBaseColorFactor([1, 1, 1, 1]); // Игнорируем потерянные текстуры, красим в белый
+
+                // Убираем текстуры, если они забагались
+                if (pbr.baseColorTexture) pbr.baseColorTexture.setTexture(null);
+                if (mat.normalTexture) mat.normalTexture.setTexture(null);
+
+                // Добавляем полировку
+                if (mat.setClearcoatFactor) {
+                    mat.setClearcoatFactor(1.0);
+                    mat.setClearcoatRoughnessFactor(0.0);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
