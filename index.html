@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Portfolio | Money & Models</title>
+    <title>3D Showroom</title>
     <style>
-        body { margin: 0; background: #0a0a0a; color: white; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+        body { margin: 0; background: #050505; color: white; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
         
-        /* Меню (Стеклянный эффект) */
+        /* Стеклянное меню */
         #ui {
             position: fixed;
             bottom: 30px;
@@ -21,7 +21,6 @@
             border-radius: 20px;
             backdrop-filter: blur(15px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
 
         .btn {
@@ -29,49 +28,36 @@
             background: rgba(255, 255, 255, 0.05);
             border-radius: 12px;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: 0.3s;
             border: 1px solid transparent;
             text-transform: uppercase;
             font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 1px;
-            color: rgba(255,255,255,0.6);
+            font-weight: bold;
+            color: rgba(255,255,255,0.7);
         }
 
-        .btn:hover { 
-            background: rgba(255, 255, 255, 0.15); 
-            transform: translateY(-5px);
-            color: white;
-        }
+        .btn:hover { background: rgba(255, 255, 255, 0.15); transform: translateY(-3px); }
+        .btn.active { border-color: #00d4ff; color: #00d4ff; background: rgba(0, 212, 255, 0.1); }
 
-        .btn.active { 
-            border-color: #00d4ff; 
-            color: #00d4ff; 
-            background: rgba(0, 212, 255, 0.1);
-            box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
-        }
-
-        /* Статус загрузки */
-        #loader {
+        #status {
             position: fixed;
             top: 20px;
             left: 20px;
-            font-size: 14px;
-            background: rgba(0,0,0,0.7);
-            padding: 10px 15px;
-            border-radius: 8px;
+            font-size: 12px;
+            background: rgba(0,0,0,0.5);
+            padding: 8px 12px;
+            border-radius: 5px;
             pointer-events: none;
-            border-left: 3px solid #00d4ff;
         }
     </style>
 </head>
 <body>
 
-<div id="loader">Ожидание...</div>
+<div id="status">Загрузка скриптов...</div>
 
 <div id="ui">
-    <div class="btn" onclick="changeModel('robot', this)">Робот</div>
     <div class="btn active" onclick="changeModel('money', this)">Деньги</div>
+    <div class="btn" onclick="changeModel('m4', this)">M4</div>
 </div>
 
 <script type="importmap">
@@ -88,96 +74,77 @@
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-    const loaderEl = document.getElementById('loader');
+    const statusEl = document.getElementById('status');
     let scene, camera, renderer, currentModel, controls;
-    const gltfLoader = new GLTFLoader();
-
-    init();
-    animate();
+    const loader = new GLTFLoader();
 
     function init() {
-        // Сцена
         scene = new THREE.Scene();
-        
-        // Камера
-        camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2, 6);
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.5, 5);
 
-        // Рендерер
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Оптимизация для ретины
+        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
         document.body.appendChild(renderer.domElement);
 
-        // Окружение и свет
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
-        scene.add(ambientLight);
+        // Освещение
+        scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+        const sun = new THREE.DirectionalLight(0xffffff, 2);
+        sun.position.set(5, 10, 5);
+        scene.add(sun);
 
-        const mainLight = new THREE.DirectionalLight(0xffffff, 2);
-        mainLight.position.set(5, 10, 7.5);
-        scene.add(mainLight);
-
-        // Управление мышкой
         controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
 
-        // Загружаем деньги по умолчанию
+        // Загружаем первую модель (money.glb)
         loadModel('money.glb');
 
         window.addEventListener('resize', onWindowResize);
     }
 
-    function loadModel(fileName) {
-        loaderEl.style.color = "white";
-        loaderEl.innerText = "Загрузка " + fileName + "...";
+    function loadModel(url) {
+        statusEl.style.color = "white";
+        statusEl.innerText = "Гружу " + url + "...";
 
-        if (currentModel) {
-            scene.remove(currentModel);
-        }
+        if (currentModel) scene.remove(currentModel);
 
-        gltfLoader.load(
-            fileName, 
-            (gltf) => {
-                currentModel = gltf.scene;
-                
-                currentModel.traverse((child) => {
-                    if (child.isMesh) {
-                        // Настройка материалов: для денег отключаем металл
-                        if (fileName.includes('money')) {
-                            child.material.metalness = 0;
-                            child.material.roughness = 0.7;
-                        } else {
-                            // Для остальных (робота) ставим хром
-                            child.material.metalness = 1;
-                            child.material.roughness = 0.1;
-                        }
+        loader.load(url, (gltf) => {
+            currentModel = gltf.scene;
+            
+            currentModel.traverse((child) => {
+                if (child.isMesh) {
+                    // Применяем логику материалов
+                    if (url.includes('money')) {
+                        child.material.metalness = 0; // Матовая бумага
+                        child.material.roughness = 0.8;
+                    } else {
+                        child.material.metalness = 1; // Жидкий металл для M4
+                        child.material.roughness = 0.1;
                     }
-                });
+                }
+            });
 
-                // Центрируем модель автоматически
-                const box = new THREE.Box3().setFromObject(currentModel);
-                const center = box.getCenter(new THREE.Vector3());
-                currentModel.position.sub(center);
-                
-                scene.add(currentModel);
-                loaderEl.innerText = "Модель: " + fileName;
-            },
-            (xhr) => {
-                const percent = Math.round((xhr.loaded / xhr.total) * 100);
-                if (percent) loaderEl.innerText = `Загружено: ${percent}%`;
-            },
-            (error) => {
-                loaderEl.style.color = "#ff4444";
-                loaderEl.innerText = "ОШИБКА: Файл " + fileName + " не найден!";
-                console.error(error);
-            }
-        );
+            // Авто-центрирование
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const center = box.getCenter(new THREE.Vector3());
+            currentModel.position.sub(center);
+            
+            scene.add(currentModel);
+            statusEl.innerText = "Файл: " + url;
+        }, 
+        (xhr) => {
+            const p = Math.round((xhr.loaded / xhr.total) * 100);
+            if (p) statusEl.innerText = "Загрузка: " + p + "%";
+        },
+        (err) => {
+            statusEl.style.color = "#ff4444";
+            statusEl.innerText = "ОШИБКА: " + url + " не найден!";
+        });
     }
 
-    // Глобальная функция для кнопок
+    // Обработчик кнопок
     window.changeModel = (name, btn) => {
         document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
@@ -192,14 +159,13 @@
 
     function animate() {
         requestAnimationFrame(animate);
-        
-        if (currentModel) {
-            currentModel.rotation.y += 0.005; // Медленное вращение
-        }
-        
+        if (currentModel) currentModel.rotation.y += 0.005;
         controls.update();
         renderer.render(scene, camera);
     }
+
+    init();
+    animate();
 </script>
 </body>
 </html>
